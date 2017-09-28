@@ -1,0 +1,11 @@
+{
+  "name": "vue-webpack",
+  "version": "0.0.1",
+  "license": "MIT",
+  "description": "根据`vue init webpack-simple`生成的模块修改，支持一键部署",
+  "scripts": {},
+  "devDependencies": {
+    "fs-extra": "^4.0.2",
+    "vue-cli": "^2.8.2"
+  }
+}
