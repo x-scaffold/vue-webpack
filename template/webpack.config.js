@@ -20,7 +20,7 @@ module.exports = {
   },
   output: {
     path: path.resolve(__dirname, './dist/'),
-    filename: 'assets/[name].js',
+    filename: 'assets/[name].[hash].js',
   },
   module: {
     rules: webpackConfig.styleLoaders({sourceMap: false, extract: false,}).concat([
@@ -120,7 +120,7 @@ if (process.env.NODE_ENV === 'production') {
         onBuildStart: ['echo "Webpack Start"'],
         onBuildEnd: [],
         onBuildExit:[
-          cdnDeployShell
+          // cdnDeployShell
         ],
         safe: true,
     }),
