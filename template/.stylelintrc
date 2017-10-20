@@ -1,0 +1,13 @@
+{
+  "extends": "stylelint-config-standard",
+  "ignoreFiles": ["*.min.css"],
+  "processors": ["stylelint-processor-html"],
+  "rules": {
+    "selector-list-comma-newline-after": "always-multi-line",
+    "declaration-block-single-line-max-declarations": 100,
+    "declaration-block-trailing-semicolon": null,
+    "no-empty-source": null,
+    "color-hex-case": null,
+    "rule-empty-line-before": ["always-multi-line", { ignore: ["after-comment", "inside-block"] }]
+  }
+}
