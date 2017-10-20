@@ -1,6 +1,6 @@
 {
   "name": "vue-webpack",
-  "version": "0.0.2",
+  "version": "0.0.3",
   "license": "MIT",
   "description": "用于简单`Vue`项目的开发的`webpack`脚手架",
   "scripts": {},

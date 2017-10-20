@@ -10,7 +10,9 @@ const WebpackShellPlugin = require('webpack-shell-plugin');
 const webpackConfig = require('@x-scaffold/webpack-config');
 const StyleLintPlugin = require('stylelint-webpack-plugin');
 const QiniuPlugin = require('qiniu-webpack-plugin');
+const CompressionWebpackPlugin = require('compression-webpack-plugin');
 const IP = require('ip').address();
+const FileManagerPlugin = require('filemanager-webpack-plugin');
 const pkg = require('./package.json');
 const PORT = 8080;
 const PROJECT_NANE = getProjectName();
@@ -23,11 +25,12 @@ function getProjectName() {
   return pkg.name.replace('{{', '').replace('}}').trim();
 }
 
-const qiniuPlugin = new QiniuPlugin({
+const qiniuPluginAssets = new QiniuPlugin({
   ACCESS_KEY: xConfig.qiniuConfig.accessKey,
   SECRET_KEY: xConfig.qiniuConfig.secretKey,
   bucket: 'deploy',
   path: '',
+  // include 可选项。你可以选择上传的文件，比如['main.js']``或者[/main/]`
   // path: '[hash]'
 });
 
@@ -47,7 +50,7 @@ module.exports = {
   module: {
     rules: webpackConfig.styleLoaders({
       sourceMap: false,
-      extract: false }).concat([
+      extract: process.env.NODE_ENV === 'production' }).concat([
       {
         test: /\.(js|vue)$/,
         loader: 'eslint-loader',
@@ -72,10 +75,10 @@ module.exports = {
         exclude: /node_modules/,
       },
       {
-        test: /\.(png|jpg|gif|svg)$/,
+        test: /\.(png|jpg|gif|svg|jpeg)$/,
         loader: 'file-loader',
         options: {
-          name: `{PROJECT_NANE}/[name].[ext]`,
+          name: `${PROJECT_NANE}/[name][hash].[ext]`,
         },
       },
     ]),
@@ -113,12 +116,6 @@ module.exports = {
       files: ['**/*.s?(a|c)ss', 'src/**/**/*.vue', 'src/***/*.css'],
       // files: '../static/.css'
     }),
-    // http://mobilesite.github.io/2017/02/18/all-the-errors-encountered-in-webpack/
-    // https://segmentfault.com/q/1010000008716379
-    new ExtractTextPlugin({
-      disable: true,
-      filename: path.posix.join('static', 'css/[name].[hash].css'),
-    }),
     new HtmlWebpackPlugin({
       filename: 'index.html',
       template: 'template.html',
@@ -148,17 +145,50 @@ if (process.env.NODE_ENV === 'production') {
   // module.exports.devtool = '#source-map';
   // http://vue-loader.vuejs.org/en/workflow/production.html
   module.exports.plugins = (module.exports.plugins || []).concat([
-    qiniuPlugin,
+    qiniuPluginAssets,
+    // http://mobilesite.github.io/2017/02/18/all-the-errors-encountered-in-webpack/
+    // https://segmentfault.com/q/1010000008716379
+    new ExtractTextPlugin({
+      disable: false,
+      filename: path.posix.join('dist', 'css/[name].[hash].css'),
+    }),
     // @todo
-    new WebPackDeployAfterBuild({
-      from: path.resolve(__dirname, './dist/'),
-      to: path.join(xConfig.cndAssets, 'mapp/' + PROJECT_NANE),
+    // https://github.com/webpack-contrib/copy-webpack-plugin/issues/15
+    // new WebPackDeployAfterBuild({
+    //   from: path.resolve(__dirname, './dist/'),
+    //   to: path.join(xConfig.cndAssets, 'mapp/' + PROJECT_NANE),
+    // }),
+    new FileManagerPlugin({
+      onEnd: {
+        copy: [
+          // { source: '/path/from', destination: '/path/to' },
+          {
+            source: path.resolve(__dirname, './dist/index.html'),
+            destination: path.join(xConfig.cndAssets, 'mapp/' + PROJECT_NANE, 'index.html')
+          },
+        ],
+        // move: [
+        //   { source: '/path/from', destination: '/path/to' },
+        //   { source: '/path/fromfile.txt', destination: '/path/tofile.txt' }
+        // ],
+        // delete: [
+        //  '/path/to/file.txt',
+        //  '/path/to/directory/'
+        // ]
+      },
+    }),
+    new CompressionWebpackPlugin({
+      asset: '[path].gz[query]',
+      algorithm: 'gzip',
+      test: new RegExp('\\.(' + ['js', 'css'].join('|') + ')$'),
+      threshold: 10240,
+      minRatio: 0.8,
     }),
     new WebpackShellPlugin({
-      onBuildStart: ['echo "Webpack Start"'],
+      onBuildStart: ['echo WebpackShellPlugin Start'],
       onBuildEnd: [],
       onBuildExit: [
-        // cdnDeployShell
+        cdnDeployShell
       ],
       safe: true,
     }),
