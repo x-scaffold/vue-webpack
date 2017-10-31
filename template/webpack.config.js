@@ -22,7 +22,7 @@ function resolve(dir) {
 }
 
 function getProjectName() {
-  return pkg.name.replace('{{', '').replace('}}').trim();
+  return pkg.name;
 }
 
 const qiniuPluginAssets = new QiniuPlugin({

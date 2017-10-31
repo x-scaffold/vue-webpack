@@ -22,7 +22,10 @@ module.exports = {
     "author": {
       "type": "string",
       "message": "Author"
-    },
+    }
+  },
+  "filters": {
+    "node_modules/**/*": false
   },
   "completeMessage": "To get started:\n\n  {{^inPlace}}cd {{destDirName}}\n  {{/inPlace}}npm install\n  npm run dev\n\nDocumentation can be found at https://github.com/x-scaffold/vue-webpack"
 };
