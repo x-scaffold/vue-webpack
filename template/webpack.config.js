@@ -9,13 +9,17 @@ const HtmlWebpackPlugin = require('html-webpack-plugin');
 const WebpackShellPlugin = require('webpack-shell-plugin');
 const webpackConfig = require('@x-scaffold/webpack-config');
 const StyleLintPlugin = require('stylelint-webpack-plugin');
+const OptimizeCSSPlugin = require('optimize-css-assets-webpack-plugin');
 const QiniuPlugin = require('qiniu-webpack-plugin');
 const CompressionWebpackPlugin = require('compression-webpack-plugin');
 const IP = require('ip').address();
 const FileManagerPlugin = require('filemanager-webpack-plugin');
+const WebpackAssetsManifest = require('webpack-assets-manifest');
 const pkg = require('./package.json');
 const PORT = 8080;
 const PROJECT_NANE = getProjectName();
+const portFinderSync = require('portfinder-sync');
+const port = portFinderSync.getPort(PORT);
 
 function resolve(dir) {
   return path.join(__dirname, '..', dir);
@@ -30,9 +34,15 @@ const qiniuPluginAssets = new QiniuPlugin({
   SECRET_KEY: xConfig.qiniuConfig.secretKey,
   bucket: 'deploy',
   path: '',
+  include: [new RegExp(pkg.name + '/')],
   // include 可选项。你可以选择上传的文件，比如['main.js']``或者[/main/]`
-  // path: '[hash]'
 });
+
+const banner = `/*!
+ * ${pkg.name} v${pkg.version}
+ * (c) ${new Date().getFullYear()} ${pkg.author}
+ * Released under the ${pkg.license} License.
+ */`;
 
 module.exports = {
   entry: {
@@ -45,7 +55,7 @@ module.exports = {
     chunkFilename: `${PROJECT_NANE}/[name].[hash].js`,
     publicPath: process.env.NODE_ENV === 'production'
       ? '//p1.cosmeapp.com/'
-      : `//${IP}:${PORT}/`,
+      : `//${IP}:${port}/`,
   },
   module: {
     rules: webpackConfig.styleLoaders({
@@ -66,7 +76,6 @@ module.exports = {
         loader: 'vue-loader',
         options: {
           loaders: webpackConfig.loaders,
-          // other vue-loader options go here
         },
       },
       {
@@ -93,15 +102,15 @@ module.exports = {
     alias: {
       vue$: 'vue/dist/vue.esm.js',
       src: resolve('src'),
-      views: resolve('src/views'),
-      components: resolve('src/components'),
-      assets: resolve('src/assets'),
     },
   },
   devServer: {
     host: IP,
     hot: false,
     open: true,
+    port,
+    progress: true,
+    inline: true,
     // https: true,
     historyApiFallback: true,
     noInfo: true,
@@ -109,8 +118,13 @@ module.exports = {
   performance: {
     hints: false,
   },
-  // devtool: '#eval-source-map',
   plugins: [
+    new webpack.NamedModulesPlugin(),
+    new webpack.NamedChunksPlugin(),
+    new webpack.BannerPlugin({
+      banner: banner,
+      raw: true,
+    }),
     new StyleLintPlugin({
       failOnError: false,
       files: ['**/*.s?(a|c)ss', 'src/**/**/*.vue', 'src/***/*.css'],
@@ -139,18 +153,21 @@ if (process.env.NODE_ENV === 'development') {
 }
 
 if (process.env.NODE_ENV === 'production') {
-  // @todo 优化
-  const cdnDeployShell = util.format('ls && cd ' + path.join(xConfig.cndAssets, './') + ' && git add -A && git commit -m \'%s 自动更细\' && git pull origin master && git push origin master && npm run sync', PROJECT_NANE);
-
-  // module.exports.devtool = '#source-map';
   // http://vue-loader.vuejs.org/en/workflow/production.html
   module.exports.plugins = (module.exports.plugins || []).concat([
     qiniuPluginAssets,
+    new OptimizeCSSPlugin(),
     // http://mobilesite.github.io/2017/02/18/all-the-errors-encountered-in-webpack/
     // https://segmentfault.com/q/1010000008716379
     new ExtractTextPlugin({
       disable: false,
-      filename: path.posix.join('dist', 'css/[name].[hash].css'),
+      filename: `${PROJECT_NANE}/[name].[hash].css`,
+      // path.posix.join('dist', '[name]/css.[hash].css'),
+    }),
+    new webpack.DefinePlugin({
+      'process.env': {
+        NODE_ENV: '"' + process.env.NODE_ENV + '"',
+      },
     }),
     // @todo
     // https://github.com/webpack-contrib/copy-webpack-plugin/issues/15
@@ -158,24 +175,27 @@ if (process.env.NODE_ENV === 'production') {
     //   from: path.resolve(__dirname, './dist/'),
     //   to: path.join(xConfig.cndAssets, 'mapp/' + PROJECT_NANE),
     // }),
-    new FileManagerPlugin({
-      onEnd: {
-        copy: [
-          // { source: '/path/from', destination: '/path/to' },
-          {
-            source: path.resolve(__dirname, './dist/index.html'),
-            destination: path.join(xConfig.cndAssets, 'mapp/' + PROJECT_NANE, 'index.html')
-          },
-        ],
-        // move: [
-        //   { source: '/path/from', destination: '/path/to' },
-        //   { source: '/path/fromfile.txt', destination: '/path/tofile.txt' }
-        // ],
-        // delete: [
-        //  '/path/to/file.txt',
-        //  '/path/to/directory/'
-        // ]
-      },
+    // new FileManagerPlugin({
+    //   onEnd: {
+    //     copy: [
+    //       {
+    //         source: path.resolve(__dirname, './dist/index.html'),
+    //         destination: path.join(xConfig.cndAssets, 'mapp/' + PROJECT_NANE, 'index.html')
+    //       },
+    //     ],
+    //   },
+    // }),
+    // new WebpackShellPlugin({
+    //   onBuildStart: ['echo WebpackShellPlugin Start'],
+    //   onBuildEnd: [],
+    //   onBuildExit: [
+    //     cdnDeployShell
+    //   ],
+    //   safe: true,
+    // }),
+    new WebpackAssetsManifest({
+      output: path.join(__dirname, 'dist/manifest.json'),
+      publicPath: 'https://p1.cosmeapp.com/',
     }),
     new CompressionWebpackPlugin({
       asset: '[path].gz[query]',
@@ -183,14 +203,6 @@ if (process.env.NODE_ENV === 'production') {
       test: new RegExp('\\.(' + ['js', 'css'].join('|') + ')$'),
       threshold: 10240,
       minRatio: 0.8,
-    }),
-    new WebpackShellPlugin({
-      onBuildStart: ['echo WebpackShellPlugin Start'],
-      onBuildEnd: [],
-      onBuildExit: [
-        cdnDeployShell
-      ],
-      safe: true,
     }),
     new webpack.DefinePlugin({
       'process.env': {
